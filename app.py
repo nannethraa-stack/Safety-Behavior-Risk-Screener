@@ -366,46 +366,52 @@ def generate_pdf_report(participant_data, results):
 
 
 # ==============================================================================
-# HTTP API DISPATCH FUNCTION (Port 443 HTTPS - Firewall Proof)
+# BREVO HTTP API DISPATCH FUNCTION (Port 443 HTTPS)
 # ==============================================================================
 
 def send_pdf_email(to_email, pdf_bytes, participant_name):
-    # Free API key from Resend.com (3,000 emails/month free)
-    # Set as environment variable RESEND_API_KEY or paste directly below
-    RESEND_API_KEY = os.getenv("RESEND_API_KEY", "re_123456789")
+    # Reads BREVO_API_KEY from environment variables on Render
+    BREVO_API_KEY = os.getenv("BREVO_API_KEY", "")
 
     encoded_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
 
     payload = {
-        "from": "SBRS System <onboarding@resend.dev>",
-        "to": [to_email.strip()],
+        "sender": {
+            "name": "SBRS Assessment System",
+            "email": "nanda.23@gmail.com"  # Must match your verified Brevo sender email
+        },
+        "to": [
+            {
+                "email": to_email.strip()
+            }
+        ],
         "subject": f"SBRS Assessment Results Report - {participant_name}",
-        "html": (
+        "htmlContent": (
             f"<p>Dear Colleague / Recipient,</p>"
             f"<p>Please find attached the completed Safety & Behavior Risk Screener (SBRS) assessment report "
             f"for Participant: <strong>{participant_name}</strong>.</p>"
             f"<p>This report contains confidential clinical screening observations intended for professional review.</p>"
             f"<p>Best regards,<br>SBRS Automated Assessment System</p>"
         ),
-        "attachments": [
+        "attachment": [
             {
-                "filename": f"SBRS_Report_{participant_name}.pdf",
+                "name": f"SBRS_Report_{participant_name}.pdf",
                 "content": encoded_pdf
             }
         ]
     }
 
     headers = {
-        "Authorization": f"Bearer {RESEND_API_KEY}",
+        "api-key": BREVO_API_KEY,
         "Content-Type": "application/json"
     }
 
     try:
-        response = requests.post("https://api.resend.com/emails", json=payload, headers=headers, timeout=10)
-        if response.status_code in [200, 201]:
+        response = requests.post("https://api.brevo.com/v3/smtp/email", json=payload, headers=headers, timeout=10)
+        if response.status_code in [200, 201, 202]:
             return True, f"Report successfully dispatched to {to_email}!"
         else:
-            return False, f"Dispatch Error ({response.status_code}): {response.text}"
+            return False, f"Brevo Dispatch Error ({response.status_code}): {response.text}"
     except Exception as e:
         return False, f"HTTP Dispatch Failed: {str(e)}"
 
@@ -651,7 +657,7 @@ else:
                     "email": recipient_email
                 }
 
-                # Generate PDF and Dispatch via HTTP API
+                # Generate PDF and Dispatch via Brevo HTTP API
                 pdf_bytes = generate_pdf_report(participant_payload, results_payload)
                 email_success, email_msg = send_pdf_email(recipient_email, pdf_bytes, participant_name)
 
