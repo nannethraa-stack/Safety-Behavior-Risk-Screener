@@ -370,15 +370,16 @@ def generate_pdf_report(participant_data, results):
 
 
 # ==============================================================================
-# EMAIL DISPATCH FUNCTION
+# EMAIL DISPATCH FUNCTION (WITH TLS & CONNECTION TIMEOUT)
 # ==============================================================================
 
 def send_pdf_email(to_email, pdf_bytes, participant_name):
+    # Port 587 TLS setup for optimal cloud compatibility
     SMTP_SERVER = "smtp.gmail.com"
-    SMTP_PORT = 465  # SSL Port for cloud compatibility
+    SMTP_PORT = 587 
     
     SENDER_EMAIL = "nanda.23@gmail.com"
-    SENDER_PASSWORD = os.getenv("SENDER_PASSWORD", "xvtgozbbneeaklmt")
+    SENDER_PASSWORD = os.getenv("SENDER_PASSWORD", "xvtgozbbneeaklmt").replace(" ", "")
 
     msg = MIMEMultipart()
     msg['From'] = f"SBRS Assessment System <{SENDER_EMAIL}>"
@@ -400,7 +401,10 @@ def send_pdf_email(to_email, pdf_bytes, participant_name):
     msg.attach(attachment)
 
     try:
-        server = smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT)
+        # Added explicit 10-second timeout to prevent UI hanging
+        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=10)
+        server.ehlo()
+        server.starttls()
         server.login(SENDER_EMAIL, SENDER_PASSWORD)
         server.send_message(msg)
         server.quit()
@@ -423,7 +427,7 @@ if "submitted" not in st.session_state:
     st.session_state.submitted = False
 
 # ------------------------------------------------------------------------------
-# POST-SUBMISSION STATE (SUPPRESSES ALL SCORES)
+# POST-SUBMISSION STATE
 # ------------------------------------------------------------------------------
 if st.session_state.submitted:
     st.success("Validations completed and results are sent to the recipient email address.")
@@ -595,66 +599,67 @@ else:
             for mf in missing_fields:
                 st.write(f"• {mf}")
         else:
-            # Calculate Scores
-            sec1_score = sum(sec1_answers)
-            sec1_lvl, sec1_cut, sec1_msg = evaluate_section_1_2(sec1_score)
+            with st.spinner("Generating PDF report and sending email..."):
+                # Calculate Scores
+                sec1_score = sum(sec1_answers)
+                sec1_lvl, sec1_cut, sec1_msg = evaluate_section_1_2(sec1_score)
 
-            sec2_score = sum(sec2_answers)
-            sec2_lvl, sec2_cut, sec2_msg = evaluate_section_1_2(sec2_score)
+                sec2_score = sum(sec2_answers)
+                sec2_lvl, sec2_cut, sec2_msg = evaluate_section_1_2(sec2_score)
 
-            sec3_status, sec3_meaning = evaluate_section_3(
-                sec3_answers["S1"], sec3_answers["S2"], sec3_answers["S3"],
-                sec3_answers["S4"], sec3_answers["S5"], sec3_answers["S6"]
-            )
+                sec3_status, sec3_meaning = evaluate_section_3(
+                    sec3_answers["S1"], sec3_answers["S2"], sec3_answers["S3"],
+                    sec3_answers["S4"], sec3_answers["S5"], sec3_answers["S6"]
+                )
 
-            sec4_r_score = sum(sec4_r_answers)
-            sec4_r_lvl, sec4_r_cut, sec4_r_msg = evaluate_sec4_reactive(sec4_r_score)
+                sec4_r_score = sum(sec4_r_answers)
+                sec4_r_lvl, sec4_r_cut, sec4_r_msg = evaluate_sec4_reactive(sec4_r_score)
 
-            sec4_p_score = sum(sec4_p_answers)
-            sec4_p_lvl, sec4_p_cut, sec4_p_msg = evaluate_sec4_proactive(sec4_p_score)
+                sec4_p_score = sum(sec4_p_answers)
+                sec4_p_lvl, sec4_p_cut, sec4_p_msg = evaluate_sec4_proactive(sec4_p_score)
 
-            sec5_scored = []
-            for idx, val in enumerate(sec5_answers):
-                if idx in [6, 7, 8, 9]:
-                    sec5_scored.append(6 - val)
+                sec5_scored = []
+                for idx, val in enumerate(sec5_answers):
+                    if idx in [6, 7, 8, 9]:
+                        sec5_scored.append(6 - val)
+                    else:
+                        sec5_scored.append(val)
+                sec5_score = sum(sec5_scored)
+                sec5_lvl, sec5_cut, sec5_msg = evaluate_sec5_attitudes(sec5_score)
+
+                sec6_a_score = sum(sec6_a_answers)
+                sec6_a_lvl, sec6_a_cut, sec6_a_msg = evaluate_sec6_academic(sec6_a_score)
+
+                sec6_d_raw = sum(sec6_d_answers)
+                sec6_d_score = sec6_d_raw * 2
+                sec6_d_lvl, sec6_d_cut, sec6_d_msg = evaluate_sec6_dass(sec6_d_score, age_group)
+
+                results_payload = {
+                    "sec1_score": sec1_score, "sec1_lvl": sec1_lvl, "sec1_cut": sec1_cut, "sec1_msg": sec1_msg,
+                    "sec2_score": sec2_score, "sec2_lvl": sec2_lvl, "sec2_cut": sec2_cut, "sec2_msg": sec2_msg,
+                    "sec3_status": sec3_status, "sec3_meaning": sec3_meaning,
+                    "sec4_r_score": sec4_r_score, "sec4_r_lvl": sec4_r_lvl, "sec4_r_cut": sec4_r_cut, "sec4_r_msg": sec4_r_msg,
+                    "sec4_p_score": sec4_p_score, "sec4_p_lvl": sec4_p_lvl, "sec4_p_cut": sec4_p_cut, "sec4_p_msg": sec4_p_msg,
+                    "sec5_score": sec5_score, "sec5_lvl": sec5_lvl, "sec5_cut": sec5_cut, "sec5_msg": sec5_msg,
+                    "sec6_a_score": sec6_a_score, "sec6_a_lvl": sec6_a_lvl, "sec6_a_cut": sec6_a_cut, "sec6_a_msg": sec6_a_msg,
+                    "sec6_d_score": sec6_d_score, "sec6_d_lvl": sec6_d_lvl, "sec6_d_cut": sec6_d_cut, "sec6_d_msg": sec6_d_msg,
+                    "sec7_sm_time": s7_1, "sec7_tv_time": s7_2, "sec7_platforms": s7_3,
+                    "sec7_sm_violent": s7_4, "sec7_gang_acc": s7_5, "sec7_adult_media": s7_6
+                }
+
+                participant_payload = {
+                    "participant_name": participant_name,
+                    "age_group": age_group,
+                    "admin_name": admin_name,
+                    "email": recipient_email
+                }
+
+                # Generate PDF and Dispatch via SMTP
+                pdf_bytes = generate_pdf_report(participant_payload, results_payload)
+                email_success, email_msg = send_pdf_email(recipient_email, pdf_bytes, participant_name)
+
+                if email_success:
+                    st.session_state.submitted = True
+                    st.rerun()
                 else:
-                    sec5_scored.append(val)
-            sec5_score = sum(sec5_scored)
-            sec5_lvl, sec5_cut, sec5_msg = evaluate_sec5_attitudes(sec5_score)
-
-            sec6_a_score = sum(sec6_a_answers)
-            sec6_a_lvl, sec6_a_cut, sec6_a_msg = evaluate_sec6_academic(sec6_a_score)
-
-            sec6_d_raw = sum(sec6_d_answers)
-            sec6_d_score = sec6_d_raw * 2
-            sec6_d_lvl, sec6_d_cut, sec6_d_msg = evaluate_sec6_dass(sec6_d_score, age_group)
-
-            results_payload = {
-                "sec1_score": sec1_score, "sec1_lvl": sec1_lvl, "sec1_cut": sec1_cut, "sec1_msg": sec1_msg,
-                "sec2_score": sec2_score, "sec2_lvl": sec2_lvl, "sec2_cut": sec2_cut, "sec2_msg": sec2_msg,
-                "sec3_status": sec3_status, "sec3_meaning": sec3_meaning,
-                "sec4_r_score": sec4_r_score, "sec4_r_lvl": sec4_r_lvl, "sec4_r_cut": sec4_r_cut, "sec4_r_msg": sec4_r_msg,
-                "sec4_p_score": sec4_p_score, "sec4_p_lvl": sec4_p_lvl, "sec4_p_cut": sec4_p_cut, "sec4_p_msg": sec4_p_msg,
-                "sec5_score": sec5_score, "sec5_lvl": sec5_lvl, "sec5_cut": sec5_cut, "sec5_msg": sec5_msg,
-                "sec6_a_score": sec6_a_score, "sec6_a_lvl": sec6_a_lvl, "sec6_a_cut": sec6_a_cut, "sec6_a_msg": sec6_a_msg,
-                "sec6_d_score": sec6_d_score, "sec6_d_lvl": sec6_d_lvl, "sec6_d_cut": sec6_d_cut, "sec6_d_msg": sec6_d_msg,
-                "sec7_sm_time": s7_1, "sec7_tv_time": s7_2, "sec7_platforms": s7_3,
-                "sec7_sm_violent": s7_4, "sec7_gang_acc": s7_5, "sec7_adult_media": s7_6
-            }
-
-            participant_payload = {
-                "participant_name": participant_name,
-                "age_group": age_group,
-                "admin_name": admin_name,
-                "email": recipient_email
-            }
-
-            # Generate PDF and Dispatch via SMTP
-            pdf_bytes = generate_pdf_report(participant_payload, results_payload)
-            email_success, email_msg = send_pdf_email(recipient_email, pdf_bytes, participant_name)
-
-            if email_success:
-                st.session_state.submitted = True
-                st.rerun()
-            else:
-                st.error(f"❌ {email_msg}")
+                    st.error(f"❌ {email_msg}")
