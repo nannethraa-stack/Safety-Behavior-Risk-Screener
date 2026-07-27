@@ -1,5 +1,6 @@
 import streamlit as st
 import smtplib
+import os
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
@@ -154,7 +155,7 @@ def evaluate_sec6_academic(score):
     else: return "High", "22-28: High", "High performance stress - recommend follow-up conversation."
 
 def evaluate_sec6_dass(score, age_group):
-    if age_group == "Ages 6-17":
+    if age_group == "Ages 6-9" or age_group == "Ages 10-17":
         if score <= 11: return "Normal", "0-11: Normal", "Stress in normative range for youth."
         elif score <= 13: return "Mild", "12-13: Mild", "Mildly elevated stress relative to youth norms."
         elif score <= 16: return "Moderate", "14-16: Moderate", "Moderately elevated stress relative to youth norms."
@@ -287,7 +288,6 @@ def generate_pdf_report(participant_data, results):
     for d_name, d_score, d_lvl, d_cut, d_msg in domains:
         clean_msg = d_msg.replace("—", "-").replace("–", "-")
         
-        # Calculate wrapping height for clinical guidance column
         lines = pdf.multi_cell(col_w[4], 4, clean_msg, split_only=True)
         num_lines = max(len(lines), 1)
         row_h = max(7, num_lines * 4 + 2)
@@ -308,11 +308,9 @@ def generate_pdf_report(participant_data, results):
         pdf.cell(col_w[2], row_h, d_lvl, 1, 0, 'C')
         pdf.cell(col_w[3], row_h, d_cut, 1, 0, 'C')
 
-        # Draw multi-line text cell
         pdf.set_xy(curr_x + col_w[0] + col_w[1] + col_w[2] + col_w[3], curr_y + 1)
         pdf.multi_cell(col_w[4], 4, clean_msg, border=0, align='L')
         
-        # Outer border alignment
         pdf.rect(curr_x + col_w[0] + col_w[1] + col_w[2] + col_w[3], curr_y, col_w[4], row_h)
         pdf.set_y(curr_y + row_h)
 
@@ -353,14 +351,8 @@ def generate_pdf_report(participant_data, results):
     pdf.set_text_color(100, 100, 100)
     pdf.multi_cell(190, 3.5, "DISCLAIMER & CLINICAL NOTE: This instrument is a standardized behavioral health screening aid intended for use by qualified counselors and clinicians. It provides preliminary risk indications and does not constitute a formal psychiatric diagnosis or full clinical evaluation.")
 
-    try:
-        raw_output = pdf.output(dest='S')
-    except TypeError:
-        raw_output = pdf.output()
-
-    if isinstance(raw_output, str):
-        return raw_output.encode('latin1')
-    return bytes(raw_output)
+    # Cleaned PDF Byte conversion fix
+    return bytes(pdf.output())
 
 
 # ==============================================================================
@@ -369,10 +361,10 @@ def generate_pdf_report(participant_data, results):
 
 def send_pdf_email(to_email, pdf_bytes, participant_name):
     SMTP_SERVER = "smtp.gmail.com"
-    SMTP_PORT = 587
+    SMTP_PORT = 465  # SSL Port for cloud compatibility
     
     SENDER_EMAIL = "nanda.23@gmail.com"
-    SENDER_PASSWORD = "xvtgozbbneeaklmt"
+    SENDER_PASSWORD = os.getenv("SENDER_PASSWORD", "xvtgozbbneeaklmt")
 
     msg = MIMEMultipart()
     msg['From'] = f"SBRS Assessment System <{SENDER_EMAIL}>"
@@ -394,8 +386,8 @@ def send_pdf_email(to_email, pdf_bytes, participant_name):
     msg.attach(attachment)
 
     try:
-        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
-        server.starttls()
+        # Use direct SSL connection over port 465
+        server = smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT)
         server.login(SENDER_EMAIL, SENDER_PASSWORD)
         server.send_message(msg)
         server.quit()
