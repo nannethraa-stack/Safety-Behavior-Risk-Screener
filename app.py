@@ -155,7 +155,7 @@ def evaluate_sec6_academic(score):
     else: return "High", "22-28: High", "High performance stress - recommend follow-up conversation."
 
 def evaluate_sec6_dass(score, age_group):
-    if age_group == "Ages 6-9" or age_group == "Ages 10-17":
+    if age_group in ["Ages 6-9", "Ages 10-17"]:
         if score <= 11: return "Normal", "0-11: Normal", "Stress in normative range for youth."
         elif score <= 13: return "Mild", "12-13: Mild", "Mildly elevated stress relative to youth norms."
         elif score <= 16: return "Moderate", "14-16: Moderate", "Moderately elevated stress relative to youth norms."
@@ -351,7 +351,6 @@ def generate_pdf_report(participant_data, results):
     pdf.set_text_color(100, 100, 100)
     pdf.multi_cell(190, 3.5, "DISCLAIMER & CLINICAL NOTE: This instrument is a standardized behavioral health screening aid intended for use by qualified counselors and clinicians. It provides preliminary risk indications and does not constitute a formal psychiatric diagnosis or full clinical evaluation.")
 
-    # Cleaned PDF Byte conversion fix
     return bytes(pdf.output())
 
 
@@ -386,7 +385,6 @@ def send_pdf_email(to_email, pdf_bytes, participant_name):
     msg.attach(attachment)
 
     try:
-        # Use direct SSL connection over port 465
         server = smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT)
         server.login(SENDER_EMAIL, SENDER_PASSWORD)
         server.send_message(msg)
@@ -469,7 +467,7 @@ else:
         st.divider()
 
         # Section 1
-        st.header("Section 1 - Bullying: Being Targeted / Bullied")
+        st.header("Section 1")
         st.caption("In the past 30 days, how often has this happened to you? Scale: 0 = Never | 1 = Once/twice | 2 = 2-3x/month | 3 = 1x/week | 4 = Several x/week+")
         sec1_answers = []
         for q in SECTION_1_QUESTIONS:
@@ -479,7 +477,7 @@ else:
         st.divider()
 
         # Section 2
-        st.header("Section 2 - Bullying: Perpetration / Bullying Others")
+        st.header("Section 2")
         st.caption("In the past 30 days, how often have you done this? Scale: 0 = Never | 1 = Once/twice | 2 = 2-3x/month | 3 = 1x/week | 4 = Several x/week+")
         sec2_answers = []
         for q in SECTION_2_QUESTIONS:
@@ -489,7 +487,7 @@ else:
         st.divider()
 
         # Section 3
-        st.header("Section 3 - Suicidal Thoughts & Tendencies")
+        st.header("Section 3")
         sec3_answers = {}
         for q_obj in SECTION_3_CUSTOM_QUESTIONS:
             val = st.radio(q_obj["text"], ["NO", "YES"], horizontal=True, index=None, key=f"sec3_{q_obj['id']}")
@@ -498,16 +496,14 @@ else:
         st.divider()
 
         # Section 4
-        st.header("Section 4 - Physical Aggressive Behavior")
+        st.header("Section 4")
         st.caption("How often does each statement describe you? Scale: 0 = Never | 1 = Sometimes | 2 = Often")
         
-        st.subheader("Reactive Aggression")
         sec4_r_answers = []
         for q in SECTION_4_REACTIVE:
             val = st.radio(q, [0, 1, 2], horizontal=True, index=None, key=f"sec4_r_{q}")
             sec4_r_answers.append(val)
 
-        st.subheader("Proactive Aggression")
         sec4_p_answers = []
         for q in SECTION_4_PROACTIVE:
             val = st.radio(q, [0, 1, 2], horizontal=True, index=None, key=f"sec4_p_{q}")
@@ -516,7 +512,7 @@ else:
         st.divider()
 
         # Section 5
-        st.header("Section 5 - Violence Attitudes")
+        st.header("Section 5")
         st.caption("How much do you agree? Scale: 1 = Strongly Disagree | 2 = Disagree | 3 = Neutral | 4 = Agree | 5 = Strongly Agree")
         sec5_answers = []
         for idx, q in enumerate(SECTION_5_QUESTIONS):
@@ -526,15 +522,13 @@ else:
         st.divider()
 
         # Section 6
-        st.header("Section 6 - Stress & Pressure")
-        st.subheader("Performance Stress Subscale")
+        st.header("Section 6")
         st.caption("In the past 30 days, how often? Scale: 0 = Never | 1 = Once/twice | 2 = 2-3x/month | 3 = 1x/week | 4 = Several x/week+")
         sec6_a_answers = []
         for q in SECTION_6_ACADEMIC:
             val = st.radio(q, [0, 1, 2, 3, 4], horizontal=True, index=None, key=f"sec6_a_{q}")
             sec6_a_answers.append(val)
 
-        st.subheader("General Life Stress (DASS-21 Subscale)")
         st.caption("Over the past week: 0 = Did not apply | 1 = Applied to some degree | 2 = Considerable degree | 3 = Very much")
         sec6_d_answers = []
         for q in SECTION_6_DASS_STRESS:
@@ -544,7 +538,7 @@ else:
         st.divider()
 
         # Section 7
-        st.header("Section 7 - Media Exposure (Descriptive Profile)")
+        st.header("Section 7")
         s7_1 = st.radio("53. Daily Social Media Time", ["0: <1 hr", "1: 1-2 hrs", "2: 2-4 hrs", "3: 4-6 hrs", "4: >6 hrs"], index=None)
         s7_2 = st.radio("54. Daily TV/Movie Streaming Time", ["0: <1 hr", "1: 1-2 hrs", "2: 2-4 hrs", "3: 4-6 hrs", "4: >6 hrs"], index=None)
         s7_3 = st.multiselect("55. Regularly Used Platforms", ["Instagram", "YouTube", "TikTok", "Snapchat", "WhatsApp", "Facebook", "X", "Discord", "YouTube Shorts/Reels"], default=[])
