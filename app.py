@@ -1,10 +1,7 @@
 import streamlit as st
-import smtplib
-import socket
 import os
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.mime.application import MIMEApplication
+import requests
+import base64
 from fpdf import FPDF
 
 # ==============================================================================
@@ -279,7 +276,7 @@ def generate_pdf_report(participant_data, results):
     pdf.set_font("Arial", "B", 8.5)
     pdf.set_text_color(26, 54, 93)
     
-    col_w = [52, 16, 24, 32, 66] # Total width = 190mm
+    col_w = [52, 16, 24, 32, 66]
     pdf.cell(col_w[0], 7, " Domain / Subscale", 1, 0, 'L', fill=True)
     pdf.cell(col_w[1], 7, " Score", 1, 0, 'C', fill=True)
     pdf.cell(col_w[2], 7, " Risk Level", 1, 0, 'C', fill=True)
@@ -301,7 +298,6 @@ def generate_pdf_report(participant_data, results):
 
     for d_name, d_score, d_lvl, d_cut, d_msg in domains:
         clean_msg = sanitize_text(d_msg)
-        
         lines = pdf.multi_cell(col_w[4], 4, clean_msg, split_only=True)
         num_lines = max(len(lines), 1)
         row_h = max(7, num_lines * 4 + 2)
@@ -370,56 +366,48 @@ def generate_pdf_report(participant_data, results):
 
 
 # ==============================================================================
-# EMAIL DISPATCH FUNCTION (FORCE IPv4 SOCKET RESOLUTION)
+# HTTP API DISPATCH FUNCTION (Port 443 HTTPS - Firewall Proof)
 # ==============================================================================
 
 def send_pdf_email(to_email, pdf_bytes, participant_name):
-    SMTP_SERVER = "smtp.gmail.com"
-    SMTP_PORT = 587 
-    
-    SENDER_EMAIL = "nanda.23@gmail.com"
-    SENDER_PASSWORD = os.getenv("SENDER_PASSWORD", "xvtgozbbneeaklmt").replace(" ", "")
+    # Free API key from Resend.com (3,000 emails/month free)
+    # Set as environment variable RESEND_API_KEY or paste directly below
+    RESEND_API_KEY = os.getenv("RESEND_API_KEY", "re_123456789")
 
-    msg = MIMEMultipart()
-    msg['From'] = f"SBRS Assessment System <{SENDER_EMAIL}>"
-    msg['To'] = to_email.strip()
-    msg['Subject'] = f"SBRS Assessment Results Report - {participant_name}"
+    encoded_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
 
-    body = (
-        f"Dear Colleague / Recipient,\n\n"
-        f"Please find attached the completed Safety & Behavior Risk Screener (SBRS) assessment report "
-        f"for Participant: {participant_name}.\n\n"
-        f"This report contains confidential clinical screening observations intended for professional review.\n\n"
-        f"Best regards,\n"
-        f"SBRS Automated Assessment System"
-    )
-    msg.attach(MIMEText(body, 'plain'))
+    payload = {
+        "from": "SBRS System <onboarding@resend.dev>",
+        "to": [to_email.strip()],
+        "subject": f"SBRS Assessment Results Report - {participant_name}",
+        "html": (
+            f"<p>Dear Colleague / Recipient,</p>"
+            f"<p>Please find attached the completed Safety & Behavior Risk Screener (SBRS) assessment report "
+            f"for Participant: <strong>{participant_name}</strong>.</p>"
+            f"<p>This report contains confidential clinical screening observations intended for professional review.</p>"
+            f"<p>Best regards,<br>SBRS Automated Assessment System</p>"
+        ),
+        "attachments": [
+            {
+                "filename": f"SBRS_Report_{participant_name}.pdf",
+                "content": encoded_pdf
+            }
+        ]
+    }
 
-    attachment = MIMEApplication(pdf_bytes, _subtype="pdf")
-    attachment.add_header('Content-Disposition', 'attachment', filename=f"SBRS_Report_{participant_name}.pdf")
-    msg.attach(attachment)
-
-    # Force socket to resolve AF_INET (IPv4) only, ignoring unrouted IPv6 addresses
-    old_getaddrinfo = socket.getaddrinfo
-    def getaddrinfo_ipv4(*args, **kwargs):
-        responses = old_getaddrinfo(*args, **kwargs)
-        return [r for r in responses if r[0] == socket.AF_INET]
-    
-    socket.getaddrinfo = getaddrinfo_ipv4
+    headers = {
+        "Authorization": f"Bearer {RESEND_API_KEY}",
+        "Content-Type": "application/json"
+    }
 
     try:
-        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=10)
-        server.ehlo()
-        server.starttls()
-        server.login(SENDER_EMAIL, SENDER_PASSWORD)
-        server.send_message(msg)
-        server.quit()
-        return True, f"Report successfully dispatched to {to_email}!"
+        response = requests.post("https://api.resend.com/emails", json=payload, headers=headers, timeout=10)
+        if response.status_code in [200, 201]:
+            return True, f"Report successfully dispatched to {to_email}!"
+        else:
+            return False, f"Dispatch Error ({response.status_code}): {response.text}"
     except Exception as e:
-        return False, f"SMTP Dispatch Failed: {str(e)}"
-    finally:
-        # Restore default socket lookup after execution
-        socket.getaddrinfo = old_getaddrinfo
+        return False, f"HTTP Dispatch Failed: {str(e)}"
 
 
 # ==============================================================================
@@ -663,7 +651,7 @@ else:
                     "email": recipient_email
                 }
 
-                # Generate PDF and Dispatch via SMTP
+                # Generate PDF and Dispatch via HTTP API
                 pdf_bytes = generate_pdf_report(participant_payload, results_payload)
                 email_success, email_msg = send_pdf_email(recipient_email, pdf_bytes, participant_name)
 
