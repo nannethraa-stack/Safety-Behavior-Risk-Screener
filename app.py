@@ -195,8 +195,22 @@ class ProfessionalSBRSReportPDF(FPDF):
         self.set_y(-15)
         self.set_font('Arial', 'I', 8)
         self.set_text_color(120, 120, 120)
-        self.cell(100, 10, 'CONFIDENTIAL — CLINICAL & EDUCATIONAL USE ONLY', 0, 0, 'L')
+        # Using ASCII dash '-' to prevent Unicode character crashes in standard FPDF fonts
+        self.cell(100, 10, 'CONFIDENTIAL - CLINICAL & EDUCATIONAL USE ONLY', 0, 0, 'L')
         self.cell(0, 10, f'Page {self.page_no()}', 0, 0, 'R')
+
+def sanitize_text(text):
+    """Helper to convert non-Latin-1 unicode characters to standard ASCII equivalents."""
+    if not isinstance(text, str):
+        return text
+    return (
+        text.replace("—", "-")
+            .replace("–", "-")
+            .replace("“", '"')
+            .replace("”", '"')
+            .replace("’", "'")
+            .replace("‘", "'")
+    )
 
 def generate_pdf_report(participant_data, results):
     pdf = ProfessionalSBRSReportPDF()
@@ -211,14 +225,14 @@ def generate_pdf_report(participant_data, results):
     pdf.set_text_color(26, 54, 93)
     pdf.set_font("Arial", "B", 12)
     pdf.set_xy(14, 21)
-    pdf.cell(90, 6, f"Participant: {participant_data['participant_name']}", 0, 0)
-    pdf.cell(90, 6, f"Administered By: {participant_data['admin_name']}", 0, 1)
+    pdf.cell(90, 6, sanitize_text(f"Participant: {participant_data['participant_name']}"), 0, 0)
+    pdf.cell(90, 6, sanitize_text(f"Administered By: {participant_data['admin_name']}"), 0, 1)
     
     pdf.set_font("Arial", "", 10)
     pdf.set_text_color(60, 64, 67)
     pdf.set_x(14)
-    pdf.cell(90, 6, f"Age Category: {participant_data['age_group']}", 0, 0)
-    pdf.cell(90, 6, f"Recipient Email: {participant_data['email']}", 0, 1)
+    pdf.cell(90, 6, sanitize_text(f"Age Category: {participant_data['age_group']}"), 0, 0)
+    pdf.cell(90, 6, sanitize_text(f"Recipient Email: {participant_data['email']}"), 0, 1)
     pdf.ln(12)
 
     # Section 3 Safety Screen Banner
@@ -244,11 +258,11 @@ def generate_pdf_report(participant_data, results):
     pdf.set_xy(14, start_y + 3)
     pdf.set_font("Arial", "B", 11)
     pdf.set_text_color(text_r, text_g, text_b)
-    pdf.cell(0, 6, f"CRITICAL RISK SCREEN (SECTION 3): {s3_status}", 0, 1)
+    pdf.cell(0, 6, sanitize_text(f"CRITICAL RISK SCREEN (SECTION 3): {s3_status}"), 0, 1)
     
     pdf.set_font("Arial", "", 9)
     pdf.set_x(14)
-    pdf.multi_cell(182, 4.5, results['sec3_meaning'])
+    pdf.multi_cell(182, 4.5, sanitize_text(results['sec3_meaning']))
     pdf.set_y(start_y + 32)
 
     # Domain Breakdown Header
@@ -286,7 +300,7 @@ def generate_pdf_report(participant_data, results):
     pdf.set_text_color(40, 40, 40)
 
     for d_name, d_score, d_lvl, d_cut, d_msg in domains:
-        clean_msg = d_msg.replace("—", "-").replace("–", "-")
+        clean_msg = sanitize_text(d_msg)
         
         lines = pdf.multi_cell(col_w[4], 4, clean_msg, split_only=True)
         num_lines = max(len(lines), 1)
@@ -301,12 +315,12 @@ def generate_pdf_report(participant_data, results):
 
         pdf.set_xy(curr_x, curr_y)
         pdf.set_font("Arial", "B", 8)
-        pdf.cell(col_w[0], row_h, f" {d_name}", 1, 0, 'L')
+        pdf.cell(col_w[0], row_h, sanitize_text(f" {d_name}"), 1, 0, 'L')
 
         pdf.set_font("Arial", "", 8)
         pdf.cell(col_w[1], row_h, str(d_score), 1, 0, 'C')
-        pdf.cell(col_w[2], row_h, d_lvl, 1, 0, 'C')
-        pdf.cell(col_w[3], row_h, d_cut, 1, 0, 'C')
+        pdf.cell(col_w[2], row_h, sanitize_text(d_lvl), 1, 0, 'C')
+        pdf.cell(col_w[3], row_h, sanitize_text(d_cut), 1, 0, 'C')
 
         pdf.set_xy(curr_x + col_w[0] + col_w[1] + col_w[2] + col_w[3], curr_y + 1)
         pdf.multi_cell(col_w[4], 4, clean_msg, border=0, align='L')
@@ -333,23 +347,24 @@ def generate_pdf_report(participant_data, results):
     pdf.set_text_color(50, 50, 50)
     
     pdf.set_xy(14, m_y)
-    pdf.cell(90, 5, f"Daily Social Media: Band {results['sec7_sm_time']}", 0, 0)
-    pdf.cell(90, 5, f"Daily TV/Streaming: Band {results['sec7_tv_time']}", 0, 1)
+    pdf.cell(90, 5, sanitize_text(f"Daily Social Media: Band {results['sec7_sm_time']}"), 0, 0)
+    pdf.cell(90, 5, sanitize_text(f"Daily TV/Streaming: Band {results['sec7_tv_time']}"), 0, 1)
 
     pdf.set_x(14)
     platforms_str = ", ".join(results['sec7_platforms']) if results['sec7_platforms'] else "None Reported"
-    pdf.cell(90, 5, f"Active Platforms: {platforms_str[:45]}...", 0, 0)
-    pdf.cell(90, 5, f"Social Media Violence Freq: Band {results['sec7_sm_violent']}", 0, 1)
+    pdf.cell(90, 5, sanitize_text(f"Active Platforms: {platforms_str[:45]}..."), 0, 0)
+    pdf.cell(90, 5, sanitize_text(f"Social Media Violence Freq: Band {results['sec7_sm_violent']}"), 0, 1)
 
     pdf.set_x(14)
-    pdf.cell(90, 5, f"Follows Fighting/Gang Accounts: {results['sec7_gang_acc']}", 0, 0)
-    pdf.cell(90, 5, f"Adult Graphic Media Exposure: {results['sec7_adult_media']}", 0, 1)
+    pdf.cell(90, 5, sanitize_text(f"Follows Fighting/Gang Accounts: {results['sec7_gang_acc']}"), 0, 0)
+    pdf.cell(90, 5, sanitize_text(f"Adult Graphic Media Exposure: {results['sec7_adult_media']}"), 0, 1)
 
     pdf.ln(8)
     
     pdf.set_font("Arial", "I", 7.5)
     pdf.set_text_color(100, 100, 100)
-    pdf.multi_cell(190, 3.5, "DISCLAIMER & CLINICAL NOTE: This instrument is a standardized behavioral health screening aid intended for use by qualified counselors and clinicians. It provides preliminary risk indications and does not constitute a formal psychiatric diagnosis or full clinical evaluation.")
+    disclaimer_text = "DISCLAIMER & CLINICAL NOTE: This instrument is a standardized behavioral health screening aid intended for use by qualified counselors and clinicians. It provides preliminary risk indications and does not constitute a formal psychiatric diagnosis or full clinical evaluation."
+    pdf.multi_cell(190, 3.5, sanitize_text(disclaimer_text))
 
     return bytes(pdf.output())
 
