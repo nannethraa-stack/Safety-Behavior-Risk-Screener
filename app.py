@@ -1,5 +1,6 @@
 import streamlit as st
 import smtplib
+import socket
 import os
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -195,7 +196,6 @@ class ProfessionalSBRSReportPDF(FPDF):
         self.set_y(-15)
         self.set_font('Arial', 'I', 8)
         self.set_text_color(120, 120, 120)
-        # Using ASCII dash '-' to prevent Unicode character crashes in standard FPDF fonts
         self.cell(100, 10, 'CONFIDENTIAL - CLINICAL & EDUCATIONAL USE ONLY', 0, 0, 'L')
         self.cell(0, 10, f'Page {self.page_no()}', 0, 0, 'R')
 
@@ -370,11 +370,10 @@ def generate_pdf_report(participant_data, results):
 
 
 # ==============================================================================
-# EMAIL DISPATCH FUNCTION (WITH TLS & CONNECTION TIMEOUT)
+# EMAIL DISPATCH FUNCTION (FORCE IPv4 SOCKET RESOLUTION)
 # ==============================================================================
 
 def send_pdf_email(to_email, pdf_bytes, participant_name):
-    # Port 587 TLS setup for optimal cloud compatibility
     SMTP_SERVER = "smtp.gmail.com"
     SMTP_PORT = 587 
     
@@ -400,8 +399,15 @@ def send_pdf_email(to_email, pdf_bytes, participant_name):
     attachment.add_header('Content-Disposition', 'attachment', filename=f"SBRS_Report_{participant_name}.pdf")
     msg.attach(attachment)
 
+    # Force socket to resolve AF_INET (IPv4) only, ignoring unrouted IPv6 addresses
+    old_getaddrinfo = socket.getaddrinfo
+    def getaddrinfo_ipv4(*args, **kwargs):
+        responses = old_getaddrinfo(*args, **kwargs)
+        return [r for r in responses if r[0] == socket.AF_INET]
+    
+    socket.getaddrinfo = getaddrinfo_ipv4
+
     try:
-        # Added explicit 10-second timeout to prevent UI hanging
         server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=10)
         server.ehlo()
         server.starttls()
@@ -411,6 +417,9 @@ def send_pdf_email(to_email, pdf_bytes, participant_name):
         return True, f"Report successfully dispatched to {to_email}!"
     except Exception as e:
         return False, f"SMTP Dispatch Failed: {str(e)}"
+    finally:
+        # Restore default socket lookup after execution
+        socket.getaddrinfo = old_getaddrinfo
 
 
 # ==============================================================================
