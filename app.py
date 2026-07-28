@@ -2,7 +2,20 @@ import streamlit as st
 import os
 import requests
 import base64
+import logging
 from fpdf import FPDF
+
+# ==============================================================================
+# LOGGING CONFIGURATION
+# ==============================================================================
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    handlers=[
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger("SBRS_App")
 
 # ==============================================================================
 # STREAMLIT PAGE CONFIGURATION
@@ -210,168 +223,177 @@ def sanitize_text(text):
     )
 
 def generate_pdf_report(participant_data, results):
-    pdf = ProfessionalSBRSReportPDF()
-    pdf.set_auto_page_break(auto=True, margin=18)
-    pdf.add_page()
-    
-    # Participant Metadata Header
-    pdf.set_fill_color(245, 247, 250)
-    pdf.set_draw_color(206, 212, 218)
-    pdf.rect(10, 18, 190, 26, 'DF')
-    
-    pdf.set_text_color(26, 54, 93)
-    pdf.set_font("Arial", "B", 12)
-    pdf.set_xy(14, 21)
-    pdf.cell(90, 6, sanitize_text(f"Participant: {participant_data['participant_name']}"), 0, 0)
-    pdf.cell(90, 6, sanitize_text(f"Administered By: {participant_data['admin_name']}"), 0, 1)
-    
-    pdf.set_font("Arial", "", 10)
-    pdf.set_text_color(60, 64, 67)
-    pdf.set_x(14)
-    pdf.cell(90, 6, sanitize_text(f"Age Category: {participant_data['age_group']}"), 0, 0)
-    pdf.cell(90, 6, sanitize_text(f"Recipient Email: {participant_data['email']}"), 0, 1)
-    pdf.ln(12)
+    logger.info(f"Starting PDF generation for participant: {participant_data.get('participant_name')}")
+    try:
+        pdf = ProfessionalSBRSReportPDF()
+        pdf.set_auto_page_break(auto=True, margin=18)
+        pdf.add_page()
+        
+        # Participant Metadata Header
+        pdf.set_fill_color(245, 247, 250)
+        pdf.set_draw_color(206, 212, 218)
+        pdf.rect(10, 18, 190, 26, 'DF')
+        
+        pdf.set_text_color(26, 54, 93)
+        pdf.set_font("Arial", "B", 12)
+        pdf.set_xy(14, 21)
+        pdf.cell(90, 6, sanitize_text(f"Participant: {participant_data['participant_name']}"), 0, 0)
+        pdf.cell(90, 6, sanitize_text(f"Administered By: {participant_data['admin_name']}"), 0, 1)
+        
+        pdf.set_font("Arial", "", 10)
+        pdf.set_text_color(60, 64, 67)
+        pdf.set_x(14)
+        pdf.cell(90, 6, sanitize_text(f"Age Category: {participant_data['age_group']}"), 0, 0)
+        pdf.cell(90, 6, sanitize_text(f"Recipient Email: {participant_data['email']}"), 0, 1)
+        pdf.ln(12)
 
-    # Section 3 Safety Screen Banner
-    s3_status = results['sec3_status']
-    if "ACUTE" in s3_status:
-        bg_r, bg_g, bg_b = 254, 226, 226
-        border_r, border_g, border_b = 220, 38, 38
-        text_r, text_g, text_b = 153, 27, 27
-    elif "NON-ACUTE" in s3_status:
-        bg_r, bg_g, bg_b = 254, 243, 199
-        border_r, border_g, border_b = 217, 119, 6
-        text_r, text_g, text_b = 146, 64, 14
-    else:
-        bg_r, bg_g, bg_b = 220, 252, 231
-        border_r, border_g, border_b = 22, 163, 74
-        text_r, text_g, text_b = 20, 83, 45
+        # Section 3 Safety Screen Banner
+        s3_status = results['sec3_status']
+        if "ACUTE" in s3_status:
+            bg_r, bg_g, bg_b = 254, 226, 226
+            border_r, border_g, border_b = 220, 38, 38
+            text_r, text_g, text_b = 153, 27, 27
+        elif "NON-ACUTE" in s3_status:
+            bg_r, bg_g, bg_b = 254, 243, 199
+            border_r, border_g, border_b = 217, 119, 6
+            text_r, text_g, text_b = 146, 64, 14
+        else:
+            bg_r, bg_g, bg_b = 220, 252, 231
+            border_r, border_g, border_b = 22, 163, 74
+            text_r, text_g, text_b = 20, 83, 45
 
-    pdf.set_fill_color(bg_r, bg_g, bg_b)
-    pdf.set_draw_color(border_r, border_g, border_b)
-    pdf.rect(10, pdf.get_y(), 190, 28, 'DF')
-    
-    start_y = pdf.get_y()
-    pdf.set_xy(14, start_y + 3)
-    pdf.set_font("Arial", "B", 11)
-    pdf.set_text_color(text_r, text_g, text_b)
-    pdf.cell(0, 6, sanitize_text(f"CRITICAL RISK SCREEN (SECTION 3): {s3_status}"), 0, 1)
-    
-    pdf.set_font("Arial", "", 9)
-    pdf.set_x(14)
-    pdf.multi_cell(182, 4.5, sanitize_text(results['sec3_meaning']))
-    pdf.set_y(start_y + 32)
+        pdf.set_fill_color(bg_r, bg_g, bg_b)
+        pdf.set_draw_color(border_r, border_g, border_b)
+        pdf.rect(10, pdf.get_y(), 190, 28, 'DF')
+        
+        start_y = pdf.get_y()
+        pdf.set_xy(14, start_y + 3)
+        pdf.set_font("Arial", "B", 11)
+        pdf.set_text_color(text_r, text_g, text_b)
+        pdf.cell(0, 6, sanitize_text(f"CRITICAL RISK SCREEN (SECTION 3): {s3_status}"), 0, 1)
+        
+        pdf.set_font("Arial", "", 9)
+        pdf.set_x(14)
+        pdf.multi_cell(182, 4.5, sanitize_text(results['sec3_meaning']))
+        pdf.set_y(start_y + 32)
 
-    # Domain Breakdown Header
-    pdf.set_font("Arial", "B", 11)
-    pdf.set_text_color(26, 54, 93)
-    pdf.cell(0, 6, "DOMAIN ASSESSMENT & CLINICAL SCORES", 0, 1, 'L')
-    pdf.set_draw_color(26, 54, 93)
-    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
-    pdf.ln(3)
+        # Domain Breakdown Header
+        pdf.set_font("Arial", "B", 11)
+        pdf.set_text_color(26, 54, 93)
+        pdf.cell(0, 6, "DOMAIN ASSESSMENT & CLINICAL SCORES", 0, 1, 'L')
+        pdf.set_draw_color(26, 54, 93)
+        pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+        pdf.ln(3)
 
-    # Table Header Row
-    pdf.set_fill_color(230, 235, 245)
-    pdf.set_draw_color(180, 190, 205)
-    pdf.set_font("Arial", "B", 8.5)
-    pdf.set_text_color(26, 54, 93)
-    
-    col_w = [52, 16, 24, 32, 66]
-    pdf.cell(col_w[0], 7, " Domain / Subscale", 1, 0, 'L', fill=True)
-    pdf.cell(col_w[1], 7, " Score", 1, 0, 'C', fill=True)
-    pdf.cell(col_w[2], 7, " Risk Level", 1, 0, 'C', fill=True)
-    pdf.cell(col_w[3], 7, " Band Threshold", 1, 0, 'C', fill=True)
-    pdf.cell(col_w[4], 7, " Clinical Interpretation & Guidance", 1, 1, 'L', fill=True)
+        # Table Header Row
+        pdf.set_fill_color(230, 235, 245)
+        pdf.set_draw_color(180, 190, 205)
+        pdf.set_font("Arial", "B", 8.5)
+        pdf.set_text_color(26, 54, 93)
+        
+        col_w = [52, 16, 24, 32, 66]
+        pdf.cell(col_w[0], 7, " Domain / Subscale", 1, 0, 'L', fill=True)
+        pdf.cell(col_w[1], 7, " Score", 1, 0, 'C', fill=True)
+        pdf.cell(col_w[2], 7, " Risk Level", 1, 0, 'C', fill=True)
+        pdf.cell(col_w[3], 7, " Band Threshold", 1, 0, 'C', fill=True)
+        pdf.cell(col_w[4], 7, " Clinical Interpretation & Guidance", 1, 1, 'L', fill=True)
 
-    domains = [
-        ("Sec 1: Bullying Victimization", results['sec1_score'], results['sec1_lvl'], results['sec1_cut'], results['sec1_msg']),
-        ("Sec 2: Bullying Perpetration", results['sec2_score'], results['sec2_lvl'], results['sec2_cut'], results['sec2_msg']),
-        ("Sec 4: Reactive Aggression", results['sec4_r_score'], results['sec4_r_lvl'], results['sec4_r_cut'], results['sec4_r_msg']),
-        ("Sec 4: Proactive Aggression", results['sec4_p_score'], results['sec4_p_lvl'], results['sec4_p_cut'], results['sec4_p_msg']),
-        ("Sec 5: Violence Attitudes", results['sec5_score'], results['sec5_lvl'], results['sec5_cut'], results['sec5_msg']),
-        ("Sec 6: Performance Stress", results['sec6_a_score'], results['sec6_a_lvl'], results['sec6_a_cut'], results['sec6_a_msg']),
-        ("Sec 6: General Life Stress", results['sec6_d_score'], results['sec6_d_lvl'], results['sec6_d_cut'], results['sec6_d_msg']),
-    ]
-
-    pdf.set_font("Arial", "", 8)
-    pdf.set_text_color(40, 40, 40)
-
-    for d_name, d_score, d_lvl, d_cut, d_msg in domains:
-        clean_msg = sanitize_text(d_msg)
-        lines = pdf.multi_cell(col_w[4], 4, clean_msg, split_only=True)
-        num_lines = max(len(lines), 1)
-        row_h = max(7, num_lines * 4 + 2)
-
-        curr_x = 10
-        curr_y = pdf.get_y()
-
-        if curr_y + row_h > 275:
-            pdf.add_page()
-            curr_y = pdf.get_y()
-
-        pdf.set_xy(curr_x, curr_y)
-        pdf.set_font("Arial", "B", 8)
-        pdf.cell(col_w[0], row_h, sanitize_text(f" {d_name}"), 1, 0, 'L')
+        domains = [
+            ("Sec 1: Bullying Victimization", results['sec1_score'], results['sec1_lvl'], results['sec1_cut'], results['sec1_msg']),
+            ("Sec 2: Bullying Perpetration", results['sec2_score'], results['sec2_lvl'], results['sec2_cut'], results['sec2_msg']),
+            ("Sec 4: Reactive Aggression", results['sec4_r_score'], results['sec4_r_lvl'], results['sec4_r_cut'], results['sec4_r_msg']),
+            ("Sec 4: Proactive Aggression", results['sec4_p_score'], results['sec4_p_lvl'], results['sec4_p_cut'], results['sec4_p_msg']),
+            ("Sec 5: Violence Attitudes", results['sec5_score'], results['sec5_lvl'], results['sec5_cut'], results['sec5_msg']),
+            ("Sec 6: Performance Stress", results['sec6_a_score'], results['sec6_a_lvl'], results['sec6_a_cut'], results['sec6_a_msg']),
+            ("Sec 6: General Life Stress", results['sec6_d_score'], results['sec6_d_lvl'], results['sec6_d_cut'], results['sec6_d_msg']),
+        ]
 
         pdf.set_font("Arial", "", 8)
-        pdf.cell(col_w[1], row_h, str(d_score), 1, 0, 'C')
-        pdf.cell(col_w[2], row_h, sanitize_text(d_lvl), 1, 0, 'C')
-        pdf.cell(col_w[3], row_h, sanitize_text(d_cut), 1, 0, 'C')
+        pdf.set_text_color(40, 40, 40)
 
-        pdf.set_xy(curr_x + col_w[0] + col_w[1] + col_w[2] + col_w[3], curr_y + 1)
-        pdf.multi_cell(col_w[4], 4, clean_msg, border=0, align='L')
+        for d_name, d_score, d_lvl, d_cut, d_msg in domains:
+            clean_msg = sanitize_text(d_msg)
+            lines = pdf.multi_cell(col_w[4], 4, clean_msg, split_only=True)
+            num_lines = max(len(lines), 1)
+            row_h = max(7, num_lines * 4 + 2)
+
+            curr_x = 10
+            curr_y = pdf.get_y()
+
+            if curr_y + row_h > 275:
+                pdf.add_page()
+                curr_y = pdf.get_y()
+
+            pdf.set_xy(curr_x, curr_y)
+            pdf.set_font("Arial", "B", 8)
+            pdf.cell(col_w[0], row_h, sanitize_text(f" {d_name}"), 1, 0, 'L')
+
+            pdf.set_font("Arial", "", 8)
+            pdf.cell(col_w[1], row_h, str(d_score), 1, 0, 'C')
+            pdf.cell(col_w[2], row_h, sanitize_text(d_lvl), 1, 0, 'C')
+            pdf.cell(col_w[3], row_h, sanitize_text(d_cut), 1, 0, 'C')
+
+            pdf.set_xy(curr_x + col_w[0] + col_w[1] + col_w[2] + col_w[3], curr_y + 1)
+            pdf.multi_cell(col_w[4], 4, clean_msg, border=0, align='L')
+            
+            pdf.rect(curr_x + col_w[0] + col_w[1] + col_w[2] + col_w[3], curr_y, col_w[4], row_h)
+            pdf.set_y(curr_y + row_h)
+
+        pdf.ln(6)
+
+        # Section 7 Media Profile (Descriptive)
+        pdf.set_font("Arial", "B", 11)
+        pdf.set_text_color(26, 54, 93)
+        pdf.cell(0, 6, "SECTION 7: MEDIA EXPOSURE PROFILE (DESCRIPTIVE)", 0, 1, 'L')
+        pdf.set_draw_color(26, 54, 93)
+        pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+        pdf.ln(3)
+
+        pdf.set_fill_color(248, 249, 250)
+        pdf.set_draw_color(220, 224, 230)
+        pdf.rect(10, pdf.get_y(), 190, 24, 'DF')
+
+        m_y = pdf.get_y() + 2
+        pdf.set_font("Arial", "", 8.5)
+        pdf.set_text_color(50, 50, 50)
         
-        pdf.rect(curr_x + col_w[0] + col_w[1] + col_w[2] + col_w[3], curr_y, col_w[4], row_h)
-        pdf.set_y(curr_y + row_h)
+        pdf.set_xy(14, m_y)
+        pdf.cell(90, 5, sanitize_text(f"Daily Social Media: Band {results['sec7_sm_time']}"), 0, 0)
+        pdf.cell(90, 5, sanitize_text(f"Daily TV/Streaming: Band {results['sec7_tv_time']}"), 0, 1)
 
-    pdf.ln(6)
+        pdf.set_x(14)
+        platforms_str = ", ".join(results['sec7_platforms']) if results['sec7_platforms'] else "None Reported"
+        pdf.cell(90, 5, sanitize_text(f"Active Platforms: {platforms_str[:45]}..."), 0, 0)
+        pdf.cell(90, 5, sanitize_text(f"Social Media Violence Freq: Band {results['sec7_sm_violent']}"), 0, 1)
 
-    # Section 7 Media Profile (Descriptive)
-    pdf.set_font("Arial", "B", 11)
-    pdf.set_text_color(26, 54, 93)
-    pdf.cell(0, 6, "SECTION 7: MEDIA EXPOSURE PROFILE (DESCRIPTIVE)", 0, 1, 'L')
-    pdf.set_draw_color(26, 54, 93)
-    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
-    pdf.ln(3)
+        pdf.set_x(14)
+        pdf.cell(90, 5, sanitize_text(f"Follows Fighting/Gang Accounts: {results['sec7_gang_acc']}"), 0, 0)
+        pdf.cell(90, 5, sanitize_text(f"Adult Graphic Media Exposure: {results['sec7_adult_media']}"), 0, 1)
 
-    pdf.set_fill_color(248, 249, 250)
-    pdf.set_draw_color(220, 224, 230)
-    pdf.rect(10, pdf.get_y(), 190, 24, 'DF')
+        pdf.ln(8)
+        
+        pdf.set_font("Arial", "I", 7.5)
+        pdf.set_text_color(100, 100, 100)
+        disclaimer_text = "DISCLAIMER & CLINICAL NOTE: This instrument is a standardized behavioral health screening aid intended for use by qualified counselors and clinicians. It provides preliminary risk indications and does not constitute a formal psychiatric diagnosis or full clinical evaluation."
+        pdf.multi_cell(190, 3.5, sanitize_text(disclaimer_text))
 
-    m_y = pdf.get_y() + 2
-    pdf.set_font("Arial", "", 8.5)
-    pdf.set_text_color(50, 50, 50)
-    
-    pdf.set_xy(14, m_y)
-    pdf.cell(90, 5, sanitize_text(f"Daily Social Media: Band {results['sec7_sm_time']}"), 0, 0)
-    pdf.cell(90, 5, sanitize_text(f"Daily TV/Streaming: Band {results['sec7_tv_time']}"), 0, 1)
-
-    pdf.set_x(14)
-    platforms_str = ", ".join(results['sec7_platforms']) if results['sec7_platforms'] else "None Reported"
-    pdf.cell(90, 5, sanitize_text(f"Active Platforms: {platforms_str[:45]}..."), 0, 0)
-    pdf.cell(90, 5, sanitize_text(f"Social Media Violence Freq: Band {results['sec7_sm_violent']}"), 0, 1)
-
-    pdf.set_x(14)
-    pdf.cell(90, 5, sanitize_text(f"Follows Fighting/Gang Accounts: {results['sec7_gang_acc']}"), 0, 0)
-    pdf.cell(90, 5, sanitize_text(f"Adult Graphic Media Exposure: {results['sec7_adult_media']}"), 0, 1)
-
-    pdf.ln(8)
-    
-    pdf.set_font("Arial", "I", 7.5)
-    pdf.set_text_color(100, 100, 100)
-    disclaimer_text = "DISCLAIMER & CLINICAL NOTE: This instrument is a standardized behavioral health screening aid intended for use by qualified counselors and clinicians. It provides preliminary risk indications and does not constitute a formal psychiatric diagnosis or full clinical evaluation."
-    pdf.multi_cell(190, 3.5, sanitize_text(disclaimer_text))
-
-    return bytes(pdf.output())
+        logger.info("PDF generation completed successfully.")
+        return bytes(pdf.output())
+    except Exception as e:
+        logger.error(f"Error during PDF generation: {str(e)}", exc_info=True)
+        raise e
 
 
 # ==============================================================================
-# BREVO HTTP API DISPATCH FUNCTION (Port 443 HTTPS)
+# BREVO HTTP API DISPATCH FUNCTION (Port 443 HTTPS with extended mobile timeout)
 # ==============================================================================
 
 def send_pdf_email(to_email, pdf_bytes, participant_name):
     BREVO_API_KEY = os.getenv("BREVO_API_KEY", "")
+    if not BREVO_API_KEY:
+        logger.warning("BREVO_API_KEY environment variable is missing or empty.")
 
+    logger.info(f"Preparing to send email to {to_email} via Brevo API for participant: {participant_name}")
     encoded_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
 
     payload = {
@@ -406,12 +428,17 @@ def send_pdf_email(to_email, pdf_bytes, participant_name):
     }
 
     try:
-        response = requests.post("https://api.brevo.com/v3/smtp/email", json=payload, headers=headers, timeout=10)
+        # Extended timeout to 25 seconds to support slower mobile networks/latency spikes
+        response = requests.post("https://api.brevo.com/v3/smtp/email", json=payload, headers=headers, timeout=25)
+        logger.info(f"Brevo API response status code: {response.status_code}")
         if response.status_code in [200, 201, 202]:
+            logger.info(f"Email successfully dispatched to {to_email}")
             return True, f"Report successfully dispatched to {to_email}!"
         else:
+            logger.error(f"Brevo API error response: {response.text}")
             return False, f"Brevo Dispatch Error ({response.status_code}): {response.text}"
     except Exception as e:
+        logger.error(f"HTTP request failed during email dispatch: {str(e)}", exc_info=True)
         return False, f"HTTP Dispatch Failed: {str(e)}"
 
 
@@ -429,22 +456,25 @@ if "submitted" not in st.session_state:
     st.session_state.submitted = False
 
 # ------------------------------------------------------------------------------
-# POST-SUBMISSION STATE
+# POST-SUBMISSION STATE (Optimized for Mobile Download Reliability)
 # ------------------------------------------------------------------------------
 if st.session_state.submitted:
-    st.success("Validations completed, results sent to recipient email, and direct report download is now available below[cite: 2].")
+    logger.info("Rendering post-submission state view.")
+    st.success("Validations completed successfully! Your assessment report is ready.")
     
-    # Direct Download Option added post-submission
+    # Persistent Download Button for Mobile Devices (Prevents browser blockages)
     if "pdf_data" in st.session_state and "participant_name" in st.session_state:
         st.download_button(
-            label="📥 Download Assessment PDF Report Directly",
+            label="📥 Tap Here to Download Assessment PDF Report",
             data=st.session_state.pdf_data,
             file_name=f"SBRS_Report_{st.session_state.participant_name}.pdf",
             mime="application/pdf",
-            type="primary"
+            type="primary",
+            use_container_width=True
         )
 
-    if st.button("Administer Another Assessment"):
+    if st.button("Administer Another Assessment", use_container_width=True):
+        logger.info("Resetting session state for new assessment administration.")
         st.session_state.submitted = False
         st.session_state.opted_in = False
         if "pdf_data" in st.session_state: del st.session_state.pdf_data
@@ -455,6 +485,7 @@ if st.session_state.submitted:
 # STEP 1: OPT-IN AGREEMENT
 # ------------------------------------------------------------------------------
 elif not st.session_state.opted_in:
+    logger.info("Rendering opt-in agreement screen.")
     st.subheader("📋 What to Expect in This Assessment")
     
     st.warning("""
@@ -462,7 +493,7 @@ elif not st.session_state.opted_in:
     * This instrument screens for bullying, physical aggression, violence attitudes, stress, media exposure, and **suicidal thoughts & tendencies (Section 3)**.
     * **Who May Administer:** Only trained counselors, psychologists, or designated mental health professionals.
     * **Section 3 Protocol:** Any positive response in Section 3 requires immediate activation of the *Immediate Response Protocol*.
-    * **Report Delivery:** Reports are generated and delivered via email with instant secure download options.
+    * **Report Delivery:** Reports are compiled instantly with secure direct download access optimized for both desktop and mobile devices.
     """)
 
     st.markdown("""
@@ -477,17 +508,20 @@ elif not st.session_state.opted_in:
     st.subheader("Informed Consent & Professional Opt-In")
     agree_terms = st.checkbox("I confirm that I am a trained professional, have read the Administration Guidelines, and have obtained necessary consent to proceed.", value=False)
     
-    if st.button("Begin Assessment", type="primary"):
+    if st.button("Begin Assessment", type="primary", use_container_width=True):
         if agree_terms:
+            logger.info("User accepted terms and opted in to begin assessment.")
             st.session_state.opted_in = True
             st.rerun()
         else:
+            logger.warning("User attempted to begin assessment without checking the agreement box.")
             st.error("You must accept the terms and guidelines before proceeding.")
 
 # ------------------------------------------------------------------------------
 # STEP 2: FULL ASSESSMENT FORM
 # ------------------------------------------------------------------------------
 else:
+    logger.info("Rendering main assessment form inputs.")
     with st.form("sbrs_full_form"):
         st.header("1. Respondent & Administrator Profile")
         col_a, col_b, col_c = st.columns(3)
@@ -584,15 +618,15 @@ else:
 
         # Submission Section
         st.header("2. Submission & Dispatch Options")
-        st.caption("Note: Submitting will trigger an automated email dispatch and instantly unlock a direct secure download link[cite: 2].")
-        recipient_email = st.text_input("Enter Email Address to receive the PDF Assessment Report*", value="")
+        recipient_email = st.text_input("Enter Email Address to receive a copy of the PDF Report*", value="")
 
-        submit_btn = st.form_submit_button("Submit Assessment, Send Email & Enable Download", type="primary")
+        submit_btn = st.form_submit_button("Process Assessment & Generate Report", type="primary", use_container_width=True)
 
     # --------------------------------------------------------------------------
     # SUBMISSION VALIDATION & PROCESSING
     # --------------------------------------------------------------------------
     if submit_btn:
+        logger.info("Form submission triggered. Starting field validation check.")
         missing_fields = []
         if not participant_name.strip(): missing_fields.append("Participant Name / Initials")
         if not age_group: missing_fields.append("Age Band")
@@ -610,11 +644,13 @@ else:
         if s7_1 is None or s7_2 is None or s7_4 is None or s7_5 is None or s7_6 is None: missing_fields.append("Section 7 Profile Items")
 
         if missing_fields:
+            logger.warning(f"Form validation failed. Missing fields: {missing_fields}")
             st.error("❌ Submission Incomplete! Please answer all required questions:")
             for mf in missing_fields:
                 st.write(f"• {mf}")
         else:
-            with st.spinner("Generating PDF report, sending email and preparing direct download link..."):
+            logger.info("Validation passed successfully. Beginning calculation, PDF rendering, and email dispatch.")
+            with st.spinner("Generating PDF report and transmitting via email..."):
                 # Calculate Scores
                 sec1_score = sum(sec1_answers)
                 sec1_lvl, sec1_cut, sec1_msg = evaluate_section_1_2(sec1_score)
@@ -673,14 +709,14 @@ else:
                 pdf_bytes = generate_pdf_report(participant_payload, results_payload)
                 email_success, email_msg = send_pdf_email(recipient_email, pdf_bytes, participant_name)
 
-                # Store payload data into session state for direct download access
+                # Store payload data into session state for direct mobile download access
                 st.session_state.pdf_data = pdf_bytes
                 st.session_state.participant_name = participant_name
                 st.session_state.submitted = True
                 
                 if email_success:
-                    st.success(f"✅ {email_msg}")
+                    logger.info("Assessment processed and email sent successfully.")
                 else:
-                    st.warning(f"⚠️ Email dispatch encountered an issue: {email_msg}. However, your direct download link is ready below[cite: 2]!")
+                    logger.warning(f"Email dispatch warning: {email_msg}")
                 
                 st.rerun()
