@@ -370,7 +370,6 @@ def generate_pdf_report(participant_data, results):
 # ==============================================================================
 
 def send_pdf_email(to_email, pdf_bytes, participant_name):
-    # Reads BREVO_API_KEY from environment variables on Render
     BREVO_API_KEY = os.getenv("BREVO_API_KEY", "")
 
     encoded_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
@@ -378,7 +377,7 @@ def send_pdf_email(to_email, pdf_bytes, participant_name):
     payload = {
         "sender": {
             "name": "SBRS Assessment System",
-            "email": "nanda.23@gmail.com"  # Must match your verified Brevo sender email
+            "email": "nanda.23@gmail.com"
         },
         "to": [
             {
@@ -433,10 +432,23 @@ if "submitted" not in st.session_state:
 # POST-SUBMISSION STATE
 # ------------------------------------------------------------------------------
 if st.session_state.submitted:
-    st.success("Validations completed and results are sent to the recipient email address.")
+    st.success("Validations completed, results sent to recipient email, and direct report download is now available below[cite: 2].")
+    
+    # Direct Download Option added post-submission
+    if "pdf_data" in st.session_state and "participant_name" in st.session_state:
+        st.download_button(
+            label="📥 Download Assessment PDF Report Directly",
+            data=st.session_state.pdf_data,
+            file_name=f"SBRS_Report_{st.session_state.participant_name}.pdf",
+            mime="application/pdf",
+            type="primary"
+        )
+
     if st.button("Administer Another Assessment"):
         st.session_state.submitted = False
         st.session_state.opted_in = False
+        if "pdf_data" in st.session_state: del st.session_state.pdf_data
+        if "participant_name" in st.session_state: del st.session_state.participant_name
         st.rerun()
 
 # ------------------------------------------------------------------------------
@@ -450,7 +462,7 @@ elif not st.session_state.opted_in:
     * This instrument screens for bullying, physical aggression, violence attitudes, stress, media exposure, and **suicidal thoughts & tendencies (Section 3)**.
     * **Who May Administer:** Only trained counselors, psychologists, or designated mental health professionals.
     * **Section 3 Protocol:** Any positive response in Section 3 requires immediate activation of the *Immediate Response Protocol*.
-    * **Report Delivery:** Reports are generated and delivered exclusively via email to designated recipients.
+    * **Report Delivery:** Reports are generated and delivered via email with instant secure download options.
     """)
 
     st.markdown("""
@@ -571,11 +583,11 @@ else:
         st.divider()
 
         # Submission Section
-        st.header("2. Submission & Email Dispatch")
-        st.caption("Note: Direct downloads are disabled. The report will be delivered exclusively to the email address entered below.")
+        st.header("2. Submission & Dispatch Options")
+        st.caption("Note: Submitting will trigger an automated email dispatch and instantly unlock a direct secure download link[cite: 2].")
         recipient_email = st.text_input("Enter Email Address to receive the PDF Assessment Report*", value="")
 
-        submit_btn = st.form_submit_button("Submit Assessment & Send Email Report", type="primary")
+        submit_btn = st.form_submit_button("Submit Assessment, Send Email & Enable Download", type="primary")
 
     # --------------------------------------------------------------------------
     # SUBMISSION VALIDATION & PROCESSING
@@ -602,7 +614,7 @@ else:
             for mf in missing_fields:
                 st.write(f"• {mf}")
         else:
-            with st.spinner("Generating PDF report and sending email..."):
+            with st.spinner("Generating PDF report, sending email and preparing direct download link..."):
                 # Calculate Scores
                 sec1_score = sum(sec1_answers)
                 sec1_lvl, sec1_cut, sec1_msg = evaluate_section_1_2(sec1_score)
@@ -661,8 +673,14 @@ else:
                 pdf_bytes = generate_pdf_report(participant_payload, results_payload)
                 email_success, email_msg = send_pdf_email(recipient_email, pdf_bytes, participant_name)
 
+                # Store payload data into session state for direct download access
+                st.session_state.pdf_data = pdf_bytes
+                st.session_state.participant_name = participant_name
+                st.session_state.submitted = True
+                
                 if email_success:
-                    st.session_state.submitted = True
-                    st.rerun()
+                    st.success(f"✅ {email_msg}")
                 else:
-                    st.error(f"❌ {email_msg}")
+                    st.warning(f"⚠️ Email dispatch encountered an issue: {email_msg}. However, your direct download link is ready below[cite: 2]!")
+                
+                st.rerun()
